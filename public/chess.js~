@@ -1,0 +1,42 @@
+document.addEventListener('DOMContentLoaded', () => {
+    const socket = io(); // Подключение к серверу через Socket.IO
+    const gameId = 'game1'; // Идентификатор игры, может быть динамическим
+
+    // Инициализация шахматной доски и игры
+    let board = Chessboard('board', {
+        pieceTheme: '/public/images/{piece}.png', // Замените на путь к вашим изображениям
+        draggable: true,
+        position: 'start',
+        onDrop: onDrop
+    });
+
+    let game = new Chess();
+
+    // Присоединение к игре
+    socket.emit('joinGame', gameId);
+
+    // Обработка хода
+    function onDrop(source, target) {
+        let move = game.move({
+            from: source,
+            to: target,
+            promotion: 'q' // Всегда превращать пешку в ферзя, если она достигает последней линии
+        });
+
+        // Если ход некорректный, вернуть фигуру на место
+        if (move === null) return 'snapback';
+
+        // Отправка хода на сервер
+        socket.emit('move', {gameId, move: move.san}); // Отправка хода в нотации SAN
+
+        // Обновление статуса доски
+        board.position(game.fen());
+    }
+
+    // Получение хода от противника
+    socket.on('opponentMove', (moveSan) => {
+        game.move(moveSan);
+        board.position(game.fen());
+        console.log('Ход противника:', moveSan);
+    });
+});
